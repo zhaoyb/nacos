@@ -28,23 +28,34 @@ public class Server implements Comparable<Server> {
 
     /**
      * IP of member
+     *
+     * IP
      */
     private String ip;
 
     /**
      * serving port of member.
+     * 端口
      */
     private int servePort;
 
     private String site = UtilsAndCommons.UNKNOWN_SITE;
 
+    /**
+     * 权重
+     */
     private int weight = 1;
 
     /**
      * additional weight, used to adjust manually
+     *
+     * 手动调整权重
      */
     private int adWeight;
 
+    /**
+     * 是否存活
+     */
     private boolean alive = false;
 
     private long lastRefTime = 0L;
@@ -115,6 +126,9 @@ public class Server implements Comparable<Server> {
         this.lastRefTimeStr = lastRefTimeStr;
     }
 
+    /**
+     * 格式： ip:port
+     */
     public String getKey() {
         return ip + UtilsAndCommons.IP_PORT_SPLITER + servePort;
     }

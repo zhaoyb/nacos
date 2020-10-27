@@ -25,6 +25,8 @@ import java.net.HttpURLConnection;
 import java.util.Map;
 
 /**
+ * 用于转发请求给leader
+ *
  * @author nacos
  */
 @Component

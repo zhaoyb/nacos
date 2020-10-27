@@ -29,6 +29,7 @@ import java.util.Map;
  * @author nkorange
  */
 public class Service {
+
     /**
      * service name
      */
@@ -36,6 +37,8 @@ public class Service {
 
     /**
      * protect threshold
+     *
+     * 保护阈值,取值0到1,默认0
      */
     private float protectThreshold = 0.0F;
 
@@ -46,9 +49,13 @@ public class Service {
 
     /**
      * Service group to classify services into different sets.
+     * 分组名
      */
     private String groupName;
 
+    /**
+     * 元数据
+     */
     private Map<String, String> metadata = new HashMap<String, String>();
 
     public Service() {
@@ -105,11 +112,11 @@ public class Service {
     @Override
     public String toString() {
         return "Service{" +
-            "name='" + name + '\'' +
-            ", protectThreshold=" + protectThreshold +
-            ", appName='" + appName + '\'' +
-            ", groupName='" + groupName + '\'' +
-            ", metadata=" + metadata +
-            '}';
+                "name='" + name + '\'' +
+                ", protectThreshold=" + protectThreshold +
+                ", appName='" + appName + '\'' +
+                ", groupName='" + groupName + '\'' +
+                ", metadata=" + metadata +
+                '}';
     }
 }

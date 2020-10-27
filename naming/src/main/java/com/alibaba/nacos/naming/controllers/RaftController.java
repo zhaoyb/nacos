@@ -66,6 +66,14 @@ public class RaftController {
     @Autowired
     private RaftCore raftCore;
 
+    /**
+     * 投票请求
+     *
+     * @param request
+     * @param response
+     * @return
+     * @throws Exception
+     */
     @PostMapping("/vote")
     public JSONObject vote(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -75,6 +83,15 @@ public class RaftController {
         return JSON.parseObject(JSON.toJSONString(peer));
     }
 
+    /**
+     *
+     * 心跳请求
+     *
+     * @param request
+     * @param response
+     * @return
+     * @throws Exception
+     */
     @PostMapping("/beat")
     public JSONObject beat(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -90,6 +107,13 @@ public class RaftController {
         return JSON.parseObject(JSON.toJSONString(peer));
     }
 
+    /**
+     * 获取当前节点peer对象
+     *
+     * @param request
+     * @param response
+     * @return
+     */
     @GetMapping("/peer")
     public JSONObject getPeer(HttpServletRequest request, HttpServletResponse response) {
         List<RaftPeer> peers = raftCore.getPeers();
@@ -116,6 +140,15 @@ public class RaftController {
         return "ok";
     }
 
+    /**
+     *
+     * 提交数据
+     *
+     * @param request
+     * @param response
+     * @return
+     * @throws Exception
+     */
     @PostMapping("/datum")
     public String publish(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -128,6 +161,7 @@ public class RaftController {
         JSONObject json = JSON.parseObject(value);
 
         String key = json.getString("key");
+        //是instance数据
         if (KeyBuilder.matchInstanceListKey(key)) {
             raftConsistencyService.put(key, JSON.parseObject(json.getString("value"), Instances.class));
             return "ok";
@@ -146,6 +180,14 @@ public class RaftController {
         throw new NacosException(NacosException.INVALID_PARAM, "unknown type publish key: " + key);
     }
 
+    /**
+     * 删除数据
+     *
+     * @param request
+     * @param response
+     * @return
+     * @throws Exception
+     */
     @DeleteMapping("/datum")
     public String delete(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -156,6 +198,14 @@ public class RaftController {
         return "ok";
     }
 
+    /**
+     *  获取数据
+     *
+     * @param request
+     * @param response
+     * @return
+     * @throws Exception
+     */
     @GetMapping("/datum")
     public String get(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -175,6 +225,14 @@ public class RaftController {
         return JSON.toJSONString(datums);
     }
 
+    /**
+     * 获取状态
+     *
+     * @param request
+     * @param response
+     * @return
+     * @throws Exception
+     */
     @GetMapping("/state")
     public JSONObject state(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -189,6 +247,14 @@ public class RaftController {
         return result;
     }
 
+    /**
+     *  新增数据 提交
+     *
+     * @param request
+     * @param response
+     * @return
+     * @throws Exception
+     */
     @PostMapping("/datum/commit")
     public String onPublish(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -220,6 +286,14 @@ public class RaftController {
         return "ok";
     }
 
+    /**
+     * 删除数据提交
+     *
+     * @param request
+     * @param response
+     * @return
+     * @throws Exception
+     */
     @DeleteMapping("/datum/commit")
     public String onDelete(HttpServletRequest request, HttpServletResponse response) throws Exception {
 
@@ -239,6 +313,14 @@ public class RaftController {
         return "ok";
     }
 
+    /**
+     *
+     * 查看当前集群leader
+     *
+     * @param request
+     * @param response
+     * @return
+     */
     @GetMapping("/leader")
     public JSONObject getLeader(HttpServletRequest request, HttpServletResponse response) {
 

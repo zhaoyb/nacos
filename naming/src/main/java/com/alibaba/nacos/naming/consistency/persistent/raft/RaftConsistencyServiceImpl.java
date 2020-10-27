@@ -30,6 +30,9 @@ import org.springframework.stereotype.Service;
 /**
  * Use simplified Raft protocol to maintain the consistency status of Nacos cluster.
  *
+ * raft协议包装类
+ *
+ *
  * @author nkorange
  * @since 1.0.0
  */

@@ -353,6 +353,7 @@ public class ServerListManager {
 
                 if (allServers.size() > 0 && !NetUtils.localServer().contains(UtilsAndCommons.LOCAL_HOST_IP)) {
                     for (com.alibaba.nacos.naming.cluster.servers.Server server : allServers) {
+                        // 自身跳过
                         if (server.getKey().equals(NetUtils.localServer())) {
                             continue;
                         }

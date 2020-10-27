@@ -30,17 +30,32 @@ import com.alibaba.nacos.naming.pojo.Record;
 import com.alibaba.nacos.naming.push.PushService;
 import com.alibaba.nacos.naming.selector.NoneSelector;
 import com.alibaba.nacos.naming.selector.Selector;
+import java.math.BigInteger;
+import java.nio.charset.Charset;
+import java.security.MessageDigest;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
 import org.apache.commons.collections.CollectionUtils;
 import org.apache.commons.collections.ListUtils;
 import org.apache.commons.lang3.RandomStringUtils;
 import org.apache.commons.lang3.StringUtils;
 
-import java.math.BigInteger;
-import java.nio.charset.Charset;
-import java.security.MessageDigest;
-import java.util.*;
-
 /**
+ *
+ * nacos的基本概念：
+ * 服务 --> 集群 -- > 实例
+ *
+ * 服务： 比如订单服务，用户服务
+ * 集群： 一个服务下的所有机器是一个集群，但是可以进一步划分虚拟集群，比如可以按照机房划分，A机房集群，B机房集群，或者按照使用用途，A集群使用在线服务， B集群用于离线服务
+ * 实例： 就是一台机器或者一个实例， 或者一个有唯一ip:port的进程
+ *
+ * 其实在服务之上，还有命名空间， 可以认为是，可以理解为环境，比如开发环境，测试环境，线上环境
+ *
  * Service of Nacos server side
  * <p>
  * We introduce a 'service --> cluster --> instance' model, in which service stores a list of clusters,
@@ -61,6 +76,9 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
     private List<String> owners = new ArrayList<>();
     private Boolean resetWeight = false;
     private Boolean enabled = true;
+    /**
+     * 访问策略
+     */
     private Selector selector = new NoneSelector();
     private String namespaceId;
 
@@ -214,7 +232,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
 
                 if (!clusterMap.containsKey(instance.getClusterName())) {
                     Loggers.SRV_LOG.warn("cluster: {} not found, ip: {}, will create new cluster with default configuration.",
-                        instance.getClusterName(), instance.toJSON());
+                                         instance.getClusterName(), instance.toJSON());
                     Cluster cluster = new Cluster(instance.getClusterName(), this);
                     cluster.init();
                     getClusterMap().put(instance.getClusterName(), cluster);
@@ -247,7 +265,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         }
 
         Loggers.EVT_LOG.info("[IP-UPDATED] namespace: {}, service: {}, ips: {}",
-            getNamespaceId(), getName(), stringBuilder.toString());
+                             getNamespaceId(), getName(), stringBuilder.toString());
 
     }
 
@@ -455,7 +473,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
 
         for (Instance ip : ips) {
             String string = ip.getIp() + ":" + ip.getPort() + "_" + ip.getWeight() + "_"
-                + ip.isHealthy() + "_" + ip.getClusterName();
+                    + ip.isHealthy() + "_" + ip.getClusterName();
             ipsString.append(string);
             ipsString.append(",");
         }

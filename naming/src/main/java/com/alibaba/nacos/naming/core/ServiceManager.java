@@ -64,6 +64,10 @@ public class ServiceManager implements RecordListener<Service> {
      */
     private Map<String, Map<String, Service>> serviceMap = new ConcurrentHashMap<>();
 
+    /**
+     * 链表组成的双向阻塞队列
+     *
+     */
     private LinkedBlockingDeque<ServiceKey> toBeUpdatedServicesQueue = new LinkedBlockingDeque<>(1024 * 1024);
 
     private Synchronizer synchronizer = new ServiceStatusSynchronizer();
@@ -446,6 +450,9 @@ public class ServiceManager implements RecordListener<Service> {
 
     /**
      * Register an instance to a service in AP mode.
+     *
+     * AP  可用性 + 分区容错性
+     *
      * <p>
      * This method creates service or cluster silently if they don't exist.
      *
@@ -496,6 +503,7 @@ public class ServiceManager implements RecordListener<Service> {
             Instances instances = new Instances();
             instances.setInstanceList(instanceList);
 
+            // 调用底层一致性服务进行数据同步
             consistencyService.put(key, instances);
         }
     }

@@ -44,12 +44,14 @@ public class ServiceStatusSynchronizer implements Synchronizer {
         String url = "http://" + serverIP + ":" + RunningConfig.getServerPort() + RunningConfig.getContextPath() +
                 UtilsAndCommons.NACOS_NAMING_CONTEXT + "/service/status";
 
+        // 如果serverIP 本身已经包含了端口, 即： ip:port 的方式，则不使用端口
         if (serverIP.contains(UtilsAndCommons.IP_PORT_SPLITER)) {
             url = "http://" + serverIP + RunningConfig.getContextPath() +
                     UtilsAndCommons.NACOS_NAMING_CONTEXT + "/service/status";
         }
 
         try {
+            // 发送请求
             HttpClient.asyncHttpPostLarge(url, null, JSON.toJSONString(params), new AsyncCompletionHandler() {
                 @Override
                 public Integer onCompleted(Response response) throws Exception {

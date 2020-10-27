@@ -115,6 +115,12 @@ public class RaftCore {
 
     private boolean initialized = false;
 
+    /**
+     *
+     * raft 启动入口
+     *
+     * @throws Exception
+     */
     @PostConstruct
     public void init() throws Exception {
 
@@ -124,6 +130,7 @@ public class RaftCore {
 
         long start = System.currentTimeMillis();
 
+        // 从磁盘上读取文件，将文件内容加入到notifier
         raftStore.loadDatums(notifier, datums);
 
         setTerm(NumberUtils.toLong(raftStore.loadMeta().getProperty("term"), 0L));
@@ -141,7 +148,9 @@ public class RaftCore {
 
         Loggers.RAFT.info("finish to load data from disk, cost: {} ms.", (System.currentTimeMillis() - start));
 
+        // 作为一个follower ， 如果长时间没有收到心跳就开始选举
         GlobalExecutor.registerMasterElection(new MasterElection());
+        // 作为一个leader， 发送心跳
         GlobalExecutor.registerHeartbeat(new HeartBeat());
 
         Loggers.RAFT.info("timer started: leader timeout ms: {}, heart-beat timeout ms: {}",
@@ -152,8 +161,17 @@ public class RaftCore {
         return listeners;
     }
 
+    /**
+     *  写数据
+     *
+     *
+     * @param key
+     * @param value
+     * @throws Exception
+     */
     public void signalPublish(String key, Record value) throws Exception {
 
+        // 非leader节点，不接收写请求，转交leader处理
         if (!isLeader()) {
             JSONObject params = new JSONObject();
             params.put("key", key);
@@ -166,8 +184,10 @@ public class RaftCore {
         }
 
         try {
+            // 加锁
             OPERATE_LOCK.lock();
             long start = System.currentTimeMillis();
+            // 组织数据
             final Datum datum = new Datum();
             datum.key = key;
             datum.value = value;
@@ -179,8 +199,10 @@ public class RaftCore {
 
             JSONObject json = new JSONObject();
             json.put("datum", datum);
+            // source 表示这个请求是从哪个节点发的
             json.put("source", peers.local());
 
+            // leader节点先写入
             onPublish(datum, peers.local());
 
             final String content = JSON.toJSONString(json);
@@ -277,6 +299,7 @@ public class RaftCore {
             throw new IllegalStateException("received empty datum");
         }
 
+        // 非leader发送的请求，不接收
         if (!peers.isLeader(source.ip)) {
             Loggers.RAFT.warn("peer {} tried to publish data but wasn't leader, leader: {}",
                 JSON.toJSONString(source), JSON.toJSONString(getLeader()));
@@ -284,6 +307,7 @@ public class RaftCore {
                 "data but wasn't leader");
         }
 
+        //term对比
         if (source.term.get() < local.term.get()) {
             Loggers.RAFT.warn("out of date publish, pub-term: {}, cur-term: {}",
                 JSON.toJSONString(source), JSON.toJSONString(local));
@@ -294,10 +318,13 @@ public class RaftCore {
         local.resetLeaderDue();
 
         // if data should be persisted, usually this is true:
+        // 是否需要持久化
         if (KeyBuilder.matchPersistentKey(datum.key)) {
+            // 写入本地
             raftStore.write(datum);
         }
 
+        //放入内存
         datums.put(datum.key, datum);
 
         if (isLeader()) {
@@ -385,20 +412,31 @@ public class RaftCore {
 
         }
 
+        /**
+         *
+         * 发送投票
+         *
+         */
         public void sendVote() {
 
+            //当前节点
             RaftPeer local = peers.get(NetUtils.localServer());
             Loggers.RAFT.info("leader timeout, start voting,leader: {}, term: {}",
                 JSON.toJSONString(getLeader()), local.term);
 
+            // 数据重置
             peers.reset();
 
+            // 投票轮数+1
             local.term.incrementAndGet();
+            // 投票给自己
             local.voteFor = local.ip;
+            // 设置自己当前状态为candidate，表示正在投票状态
             local.state = RaftPeer.State.CANDIDATE;
 
             Map<String, String> params = new HashMap<>(1);
             params.put("vote", JSON.toJSONString(local));
+            // 向其他节点发送投票信息，
             for (final String server : peers.allServersWithoutMySelf()) {
                 final String url = buildURL(server, API_VOTE);
                 try {
@@ -410,10 +448,12 @@ public class RaftCore {
                                 return 1;
                             }
 
+                            // 响应结果
                             RaftPeer peer = JSON.parseObject(response.getResponseBody(), RaftPeer.class);
 
                             Loggers.RAFT.info("received approve from peer: {}", JSON.toJSONString(peer));
 
+                            //裁决leader
                             peers.decideLeader(peer);
 
                             return 0;
@@ -426,28 +466,45 @@ public class RaftCore {
         }
     }
 
+    /**
+     *
+     * 收到投票
+     *
+     * @param remote
+     * @return
+     */
     public synchronized RaftPeer receivedVote(RaftPeer remote) {
+        // 集合中不包含 投票的peer，
         if (!peers.contains(remote)) {
             throw new IllegalStateException("can not find peer: " + remote.ip);
         }
 
         RaftPeer local = peers.get(NetUtils.localServer());
+
+        // 如果发起投票的节点term 比当前节点term还小，则当前节点表示，自己更适合当大哥。自己给自己投
         if (remote.term.get() <= local.term.get()) {
             String msg = "received illegitimate vote" +
                 ", voter-term:" + remote.term + ", votee-term:" + local.term;
 
             Loggers.RAFT.info(msg);
             if (StringUtils.isEmpty(local.voteFor)) {
+                // 自己投给自己
                 local.voteFor = local.ip;
             }
-
+            // 告诉发起投票那小子，我更适合当老大
             return local;
         }
 
+        // 另外一种情况，发起投票的节点term 比收到投票节点term大   收到投票的节点表示，你牛逼，我投票给你，自己当甘做小弟
+
+        // 重置本地leader剩余有效期
         local.resetLeaderDue();
 
+        // 将当前节点设置为follower
         local.state = RaftPeer.State.FOLLOWER;
+        // 投票给对方
         local.voteFor = remote.ip;
+        // 同步轮数
         local.term.set(remote.term.get());
 
         Loggers.RAFT.info("vote {} as leader, term: {}", remote.ip, remote.term);
@@ -464,6 +521,7 @@ public class RaftCore {
                     return;
                 }
 
+                // 如果本地心跳有效期大于0，
                 RaftPeer local = peers.local();
                 local.heartbeatDueMs -= GlobalExecutor.TICK_PERIOD_MS;
                 if (local.heartbeatDueMs > 0) {
@@ -472,6 +530,7 @@ public class RaftCore {
 
                 local.resetHeartbeatDue();
 
+                //发送心跳
                 sendBeat();
             } catch (Exception e) {
                 Loggers.RAFT.warn("[RAFT] error while sending beat {}", e);
@@ -480,7 +539,10 @@ public class RaftCore {
         }
 
         public void sendBeat() throws IOException, InterruptedException {
+            // 表示当前节点
             RaftPeer local = peers.local();
+
+            // 这个判断， 其实表示的是 只有在分布式下， leader 节点才会发送心跳
             if (local.state != RaftPeer.State.LEADER && !STANDALONE_MODE) {
                 return;
             }
@@ -489,6 +551,7 @@ public class RaftCore {
                 Loggers.RAFT.debug("[RAFT] send beat with {} keys.", datums.size());
             }
 
+            // 开始发送心跳，  重置当前节点 leader到期时间
             local.resetLeaderDue();
 
             // build data
@@ -501,6 +564,7 @@ public class RaftCore {
                 Loggers.RAFT.info("[SEND-BEAT-ONLY] {}", String.valueOf(switchDomain.isSendBeatOnly()));
             }
 
+            // 发送心跳的同时，携带数据
             if (!switchDomain.isSendBeatOnly()) {
                 for (Datum datum : datums.values()) {
 
@@ -522,8 +586,10 @@ public class RaftCore {
             Map<String, String> params = new HashMap<String, String>(1);
             params.put("beat", JSON.toJSONString(packet));
 
+            // tostring
             String content = JSON.toJSONString(params);
 
+            //压缩
             ByteArrayOutputStream out = new ByteArrayOutputStream();
             GZIPOutputStream gzip = new GZIPOutputStream(out);
             gzip.write(content.getBytes(StandardCharsets.UTF_8));
@@ -537,22 +603,28 @@ public class RaftCore {
                     content.length(), compressedContent.length());
             }
 
+            // allServersWithoutMySelf : 排除自己， 其他所有的节点
+            // 向所有节点发送心跳
             for (final String server : peers.allServersWithoutMySelf()) {
                 try {
+                    // 心跳url
                     final String url = buildURL(server, API_BEAT);
                     if (Loggers.RAFT.isDebugEnabled()) {
                         Loggers.RAFT.debug("send beat to server " + server);
                     }
+                    // 发送心跳请求
                     HttpClient.asyncHttpPostLarge(url, null, compressedBytes, new AsyncCompletionHandler<Integer>() {
                         @Override
                         public Integer onCompleted(Response response) throws Exception {
                             if (response.getStatusCode() != HttpURLConnection.HTTP_OK) {
                                 Loggers.RAFT.error("NACOS-RAFT beat failed: {}, peer: {}",
                                     response.getResponseBody(), server);
+                                // 错误累加
                                 MetricsMonitor.getLeaderSendBeatFailedException().increment();
                                 return 1;
                             }
 
+                            // 更新当前节点上的指定peers， 心跳返回值是 接收到心跳的节点信息
                             peers.update(JSON.parseObject(response.getResponseBody(), RaftPeer.class));
                             if (Loggers.RAFT.isDebugEnabled()) {
                                 Loggers.RAFT.debug("receive beat response from: {}", url);
@@ -563,11 +635,13 @@ public class RaftCore {
                         @Override
                         public void onThrowable(Throwable t) {
                             Loggers.RAFT.error("NACOS-RAFT error while sending heart-beat to peer: {} {}", server, t);
+                            // 错误累加
                             MetricsMonitor.getLeaderSendBeatFailedException().increment();
                         }
                     });
                 } catch (Exception e) {
                     Loggers.RAFT.error("error while sending heart-beat to peer: {} {}", server, e);
+                    // 错误累加
                     MetricsMonitor.getLeaderSendBeatFailedException().increment();
                 }
             }
@@ -575,8 +649,19 @@ public class RaftCore {
         }
     }
 
+    /**
+     *
+     *  当作为follow节点，接收心跳
+     *
+     * @param beat
+     * @return
+     * @throws Exception
+     */
     public RaftPeer receivedBeat(JSONObject beat) throws Exception {
+        // 当前raft节点
         final RaftPeer local = peers.local();
+
+        // 发送心跳的那个raft节点
         final RaftPeer remote = new RaftPeer();
         remote.ip = beat.getJSONObject("peer").getString("ip");
         remote.state = RaftPeer.State.valueOf(beat.getJSONObject("peer").getString("state"));
@@ -585,12 +670,14 @@ public class RaftCore {
         remote.leaderDueMs = beat.getJSONObject("peer").getLongValue("leaderDueMs");
         remote.voteFor = beat.getJSONObject("peer").getString("voteFor");
 
+        // 发送心跳的节点应该是leader节点， 如果非leader， 表示是一个无效的心跳，报错
         if (remote.state != RaftPeer.State.LEADER) {
             Loggers.RAFT.info("[RAFT] invalid state from master, state: {}, remote peer: {}",
                 remote.state, JSON.toJSONString(remote));
             throw new IllegalArgumentException("invalid state from master, state: " + remote.state);
         }
 
+        // 如果自己的term大于leader的，表示是一个过期的心跳  报错
         if (local.term.get() > remote.term.get()) {
             Loggers.RAFT.info("[RAFT] out of date beat, beat-from-term: {}, beat-to-term: {}, remote peer: {}, and leaderDueMs: {}"
                 , remote.term.get(), local.term.get(), JSON.toJSONString(remote), local.leaderDueMs);
@@ -601,17 +688,26 @@ public class RaftCore {
         if (local.state != RaftPeer.State.FOLLOWER) {
 
             Loggers.RAFT.info("[RAFT] make remote as leader, remote peer: {}", JSON.toJSONString(remote));
-            // mk follower
+            // mk follower ,将当前节点设置为follower节点
             local.state = RaftPeer.State.FOLLOWER;
+            
+            //更新本地的投票，投票给leader
             local.voteFor = remote.ip;
         }
 
+        // 心跳携带的数据
         final JSONArray beatDatums = beat.getJSONArray("datums");
+
+        // 作为follower节点，收到心跳后，表示leader还活着，就重置LeaderDue， 表示再隔一定时间就去选举
         local.resetLeaderDue();
+
+        // 重置心跳
         local.resetHeartbeatDue();
 
+        // 设置新的leader
         peers.makeLeader(remote);
 
+        //对心跳携带数据进行处理
         if (!switchDomain.isSendBeatOnly()) {
 
             Map<String, Integer> receivedKeysMap = new HashMap<>(datums.size());

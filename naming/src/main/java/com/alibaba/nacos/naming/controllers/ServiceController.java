@@ -66,6 +66,18 @@ public class ServiceController {
     @Autowired
     private SubscribeManager subscribeManager;
 
+    /**
+     *
+     * 创建服务
+     *
+     * @param namespaceId
+     * @param serviceName
+     * @param protectThreshold
+     * @param metadata
+     * @param selector
+     * @return
+     * @throws Exception
+     */
     @PostMapping
     @Secured(parser = NamingResourceParser.class, action = ActionTypes.WRITE)
     public String create(@RequestParam(defaultValue = Constants.DEFAULT_NAMESPACE_ID) String namespaceId,
@@ -87,6 +99,7 @@ public class ServiceController {
         service.setProtectThreshold(protectThreshold);
         service.setEnabled(true);
         service.setMetadata(metadataMap);
+        //访问策略
         service.setSelector(parseSelector(selector));
         service.setNamespaceId(namespaceId);
 

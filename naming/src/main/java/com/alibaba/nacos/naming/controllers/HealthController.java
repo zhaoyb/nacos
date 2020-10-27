@@ -49,6 +49,8 @@ import java.util.Map;
 /**
  * Health status related operation controller
  *
+ * 健康检测相关操作
+ *
  * @author nkorange
  * @author nanamikon
  * @since 0.8.0
@@ -72,6 +74,12 @@ public class HealthController {
         return result;
     }
 
+    /**
+     * 更新服务的健康状态
+     *
+     * @param request
+     * @return
+     */
     @CanDistro
     @PutMapping(value = {"", "/instance"})
     @Secured(action = ActionTypes.WRITE)

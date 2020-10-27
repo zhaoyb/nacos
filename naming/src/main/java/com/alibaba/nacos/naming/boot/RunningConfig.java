@@ -48,8 +48,11 @@ public class RunningConfig implements ApplicationListener<WebServerInitializedEv
         Loggers.SRV_LOG.info("[SERVER-INIT] got port: {}", event.getWebServer().getPort());
         Loggers.SRV_LOG.info("[SERVER-INIT] got path: {}", servletContext.getContextPath());
 
+        // 应用自身端口
         serverPort = event.getWebServer().getPort();
+        // 应用自身路径
         contextPath = servletContext.getContextPath();
+        // 是否已经初始化
         isServerInitialized = true;
     }
 
@@ -60,6 +63,7 @@ public class RunningConfig implements ApplicationListener<WebServerInitializedEv
     public static String getContextPath() {
 
         if (!isServerInitialized) {
+            // 如果还没有被初始化，获取配置
             String contextPath = PropertyUtil.getProperty(Constants.WEB_CONTEXT_PATH);
             if (Constants.ROOT_WEB_CONTEXT_PATH.equals(contextPath)) {
                 return StringUtils.EMPTY;

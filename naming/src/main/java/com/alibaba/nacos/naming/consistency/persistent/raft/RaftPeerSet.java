@@ -15,6 +15,8 @@
  */
 package com.alibaba.nacos.naming.consistency.persistent.raft;
 
+import static com.alibaba.nacos.core.utils.SystemUtils.STANDALONE_MODE;
+
 import com.alibaba.fastjson.JSON;
 import com.alibaba.nacos.core.utils.SystemUtils;
 import com.alibaba.nacos.naming.boot.RunningConfig;
@@ -26,6 +28,17 @@ import com.alibaba.nacos.naming.misc.Loggers;
 import com.alibaba.nacos.naming.misc.NetUtils;
 import com.ning.http.client.AsyncCompletionHandler;
 import com.ning.http.client.Response;
+import java.net.HttpURLConnection;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
+import javax.annotation.PostConstruct;
 import org.apache.commons.collections.SortedBag;
 import org.apache.commons.collections.bag.TreeBag;
 import org.apache.commons.lang3.StringUtils;
@@ -36,14 +49,9 @@ import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.annotation.DependsOn;
 import org.springframework.stereotype.Component;
 
-import javax.annotation.PostConstruct;
-import java.net.HttpURLConnection;
-import java.util.*;
-import java.util.concurrent.atomic.AtomicLong;
-
-import static com.alibaba.nacos.core.utils.SystemUtils.STANDALONE_MODE;
-
 /**
+ * 表示当前节点持有的同伴信息节点
+ *
  * @author nacos
  */
 @Component
@@ -59,6 +67,7 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
 
     private RaftPeer leader = null;
 
+    // IP ：raft节点
     private Map<String, RaftPeer> peers = new HashMap<>();
 
     private Set<String> sites = new HashSet<>();
@@ -75,6 +84,11 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
         this.applicationContext = applicationContext;
     }
 
+    /**
+     *
+     * 监听raft节点变化
+     *
+     */
     @PostConstruct
     public void init() {
         serverListManager.listen(this);
@@ -101,6 +115,9 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
         }
     }
 
+    /**
+     * 更新节点信息
+     */
     public RaftPeer update(RaftPeer peer) {
         peers.put(peer.ip, peer);
         return peer;
@@ -140,11 +157,21 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
         return peers.size();
     }
 
+    /**
+     *
+     * 裁决，
+     *
+     * @param candidate
+     * @return
+     */
     public RaftPeer decideLeader(RaftPeer candidate) {
         peers.put(candidate.ip, candidate);
 
+        // treebag 你可以认为一个带统计功能的set,假设你有一个包，包含{a, a, b, c}。调用getCount(a)方法将返回2，调用uniqueset()方法将返回{a, b, c}。
         SortedBag ips = new TreeBag();
+        // 最大赞同数量
         int maxApproveCount = 0;
+        // 最大赞同的ip
         String maxApprovePeer = null;
         for (RaftPeer peer : peers.values()) {
             if (StringUtils.isEmpty(peer.voteFor)) {
@@ -157,13 +184,16 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
                 maxApprovePeer = peer.voteFor;
             }
         }
-
+        // 最大赞同数，超过半数，表示有效
         if (maxApproveCount >= majorityCount()) {
             RaftPeer peer = peers.get(maxApprovePeer);
+            // 将peer设置为leader
             peer.state = RaftPeer.State.LEADER;
 
+            // 当前和最新的不一致
             if (!Objects.equals(leader, peer)) {
                 leader = peer;
+                // 选举完成
                 applicationContext.publishEvent(new LeaderElectFinishedEvent(this, leader));
                 Loggers.RAFT.info("{} has become the LEADER", leader.ip);
             }
@@ -172,12 +202,18 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
         return leader;
     }
 
+    /**
+     * 将指定peer 设置为leader
+     */
     public RaftPeer makeLeader(RaftPeer candidate) {
+        // 如果之前的leader不是现在新的leader
         if (!Objects.equals(leader, candidate)) {
+            // 将新的leader设置leader
             leader = candidate;
+            // 发布事件
             applicationContext.publishEvent(new MakeLeaderEvent(this, leader));
             Loggers.RAFT.info("{} has become the LEADER, local: {}, leader: {}",
-                leader.ip, JSON.toJSONString(local()), JSON.toJSONString(leader));
+                              leader.ip, JSON.toJSONString(local()), JSON.toJSONString(leader));
         }
 
         for (final RaftPeer peer : peers.values()) {
@@ -190,7 +226,7 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
                         public Integer onCompleted(Response response) throws Exception {
                             if (response.getStatusCode() != HttpURLConnection.HTTP_OK) {
                                 Loggers.RAFT.error("[NACOS-RAFT] get peer failed: {}, peer: {}",
-                                    response.getResponseBody(), peer.ip);
+                                                   response.getResponseBody(), peer.ip);
                                 peer.state = RaftPeer.State.FOLLOWER;
                                 return 1;
                             }
@@ -221,7 +257,7 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
         }
         if (peer == null) {
             throw new IllegalStateException("unable to find local peer: " + NetUtils.localServer() + ", all peers: "
-                + Arrays.toString(peers.keySet().toArray()));
+                                                    + Arrays.toString(peers.keySet().toArray()));
         }
 
         return peer;
@@ -231,6 +267,12 @@ public class RaftPeerSet implements ServerChangeListener, ApplicationContextAwar
         return peers.get(server);
     }
 
+    /**
+     *
+     * 大多数
+     *
+     * @return
+     */
     public int majorityCount() {
         return peers.size() / 2 + 1;
     }

@@ -52,6 +52,8 @@ import java.util.*;
 
 /**
  * Instance operation controller
+ * 
+ * 实例相关操作
  *
  * @author nkorange
  */
@@ -90,11 +92,20 @@ public class InstanceController {
     };
 
 
+    /**
+     *
+     * 实例注册
+     *
+     * @param request
+     * @return
+     * @throws Exception
+     */
     @CanDistro
     @PostMapping
     @Secured(parser = NamingResourceParser.class, action = ActionTypes.WRITE)
     public String register(HttpServletRequest request) throws Exception {
 
+        // 获取参数
         String serviceName = WebUtils.required(request, CommonParams.SERVICE_NAME);
         String namespaceId = WebUtils.optional(request, CommonParams.NAMESPACE_ID, Constants.DEFAULT_NAMESPACE_ID);
 
@@ -102,6 +113,15 @@ public class InstanceController {
         return "ok";
     }
 
+
+    /**
+     *
+     * 注销实例
+     *
+     * @param request
+     * @return
+     * @throws Exception
+     */
     @CanDistro
     @DeleteMapping
     @Secured(parser = NamingResourceParser.class, action = ActionTypes.WRITE)
@@ -122,6 +142,14 @@ public class InstanceController {
         return "ok";
     }
 
+    /**
+     *
+     * 修改实例
+     *
+     * @param request
+     * @return
+     * @throws Exception
+     */
     @CanDistro
     @PutMapping
     @Secured(parser = NamingResourceParser.class, action = ActionTypes.WRITE)
@@ -187,6 +215,14 @@ public class InstanceController {
         return "ok";
     }
 
+    /**
+     *
+     * 查询实例列表
+     *
+     * @param request
+     * @return
+     * @throws Exception
+     */
     @GetMapping("/list")
     @Secured(parser = NamingResourceParser.class, action = ActionTypes.READ)
     public JSONObject list(HttpServletRequest request) throws Exception {
@@ -212,6 +248,14 @@ public class InstanceController {
             healthyOnly);
     }
 
+    /**
+     *
+     * 查询实例详情
+     *
+     * @param request
+     * @return
+     * @throws Exception
+     */
     @GetMapping
     @Secured(parser = NamingResourceParser.class, action = ActionTypes.READ)
     public JSONObject detail(HttpServletRequest request) throws Exception {
@@ -255,6 +299,14 @@ public class InstanceController {
         throw new NacosException(NacosException.NOT_FOUND, "no matched ip found!");
     }
 
+    /**
+     *
+     * 发送实例心跳
+     *
+     * @param request
+     * @return
+     * @throws Exception
+     */
     @CanDistro
     @PutMapping("/beat")
     @Secured(parser = NamingResourceParser.class, action = ActionTypes.WRITE)
@@ -329,6 +381,14 @@ public class InstanceController {
         return result;
     }
 
+    /**
+     *
+     * 查询健康状态
+     *
+     * @param key
+     * @return
+     * @throws NacosException
+     */
     @RequestMapping("/statuses")
     public JSONObject listWithHealthStatus(@RequestParam String key) throws NacosException {
 

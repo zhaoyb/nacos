@@ -44,6 +44,8 @@ import java.util.Properties;
 import java.util.concurrent.ConcurrentMap;
 
 /**
+ * 持久化节点信息到磁盘
+ *
  * @author nacos
  */
 @Component
@@ -253,6 +255,13 @@ public class RaftStore {
         }
     }
 
+    /**
+     *
+     * 读取本地文件
+     *
+     * @return
+     * @throws Exception
+     */
     private File[] listCaches() throws Exception {
         File cacheDir = new File(this.cacheDir);
         if (!cacheDir.exists() && !cacheDir.mkdirs()) {
