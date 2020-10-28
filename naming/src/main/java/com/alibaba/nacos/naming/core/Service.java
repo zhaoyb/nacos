@@ -96,6 +96,11 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
      */
     private long pushCacheMillis = 0L;
 
+    /**
+     *
+     * 组 或者叫做集群
+     *
+     */
     private Map<String, Cluster> clusterMap = new HashMap<>();
 
     public Service() {
@@ -188,6 +193,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
             }
         }
 
+        //变化通知
         updateIPs(value.getInstanceList(), KeyBuilder.matchEphemeralInstanceListKey(key));
 
         recalculateChecksum();
@@ -219,6 +225,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
             ipMap.put(clusterName, new ArrayList<>());
         }
 
+        // 数据填充，就是把instances更新到服务对应的集群下面。
         for (Instance instance : instances) {
             try {
                 if (instance == null) {
@@ -226,6 +233,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
                     continue;
                 }
 
+                // 实例集群名
                 if (StringUtils.isEmpty(instance.getClusterName())) {
                     instance.setClusterName(UtilsAndCommons.DEFAULT_CLUSTER_NAME);
                 }
@@ -233,6 +241,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
                 if (!clusterMap.containsKey(instance.getClusterName())) {
                     Loggers.SRV_LOG.warn("cluster: {} not found, ip: {}, will create new cluster with default configuration.",
                                          instance.getClusterName(), instance.toJSON());
+                    // 新建集群
                     Cluster cluster = new Cluster(instance.getClusterName(), this);
                     cluster.init();
                     getClusterMap().put(instance.getClusterName(), cluster);
@@ -257,7 +266,10 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         }
 
         setLastModifiedMillis(System.currentTimeMillis());
+
+        //通知
         getPushService().serviceChanged(this);
+
         StringBuilder stringBuilder = new StringBuilder();
 
         for (Instance instance : allIPs()) {
@@ -286,9 +298,16 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         HealthCheckReactor.cancelCheck(clientBeatCheckTask);
     }
 
+    /**
+     * 返回服务下  所有组的 所有 持久节点和临时节点的实例
+     *
+     * @return
+     */
     public List<Instance> allIPs() {
         List<Instance> allIPs = new ArrayList<>();
+        // 所有集群
         for (Map.Entry<String, Cluster> entry : clusterMap.entrySet()) {
+            // 所有IP
             allIPs.addAll(entry.getValue().allIPs());
         }
 
@@ -330,6 +349,11 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         return JSON.toJSONString(this);
     }
 
+    /**
+     * 类似于这个服务的toString()
+     *
+     * @return
+     */
     @JSONField(serialize = false)
     public String getServiceString() {
         Map<Object, Object> serviceObject = new HashMap<Object, Object>(10);
@@ -457,7 +481,13 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
         return checksum;
     }
 
+    /**
+     *
+     * 计算签名
+     *
+     */
     public synchronized void recalculateChecksum() {
+        // 获取这个服务下 所有集群，所有类型(临时+持久)所有实例
         List<Instance> ips = allIPs();
 
         StringBuilder ipsString = new StringBuilder();
@@ -478,6 +508,7 @@ public class Service extends com.alibaba.nacos.api.naming.pojo.Service implement
             ipsString.append(",");
         }
 
+        // 对内容做md5签名
         try {
             String result;
             try {

@@ -132,6 +132,11 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         this.applicationContext = applicationContext;
     }
 
+    /**
+     * 服务变更通知
+     *
+     * @param event
+     */
     @Override
     public void onApplicationEvent(ServiceChangeEvent event) {
         Service service = event.getService();
@@ -183,6 +188,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
                         Loggers.PUSH.info("serviceName: {} changed, schedule push for: {}, agent: {}, key: {}",
                             client.getServiceName(), client.getAddrStr(), client.getAgent(), (ackEntry == null ? null : ackEntry.key));
 
+                        // udp 推送
                         udpPush(ackEntry);
                     }
                 } catch (Exception e) {
@@ -340,6 +346,7 @@ public class PushService implements ApplicationContextAware, ApplicationListener
             return;
         }
 
+        // 利用spring 发布变更
         this.applicationContext.publishEvent(new ServiceChangeEvent(this, service));
     }
 
@@ -576,12 +583,19 @@ public class PushService implements ApplicationContextAware, ApplicationListener
         }
     }
 
+    /**
+     * udp 推送
+     *
+     * @param ackEntry
+     * @return
+     */
     private static Receiver.AckEntry udpPush(Receiver.AckEntry ackEntry) {
         if (ackEntry == null) {
             Loggers.PUSH.error("[NACOS-PUSH] ackEntry is null.");
             return null;
         }
 
+        // 超过最大重试次数，直接放弃
         if (ackEntry.getRetryTimes() > MAX_RETRY_TIMES) {
             Loggers.PUSH.warn("max re-push times reached, retry times {}, key: {}", ackEntry.retryTimes, ackEntry.key);
             ackMap.remove(ackEntry.key);

@@ -46,9 +46,18 @@ public class Cluster extends com.alibaba.nacos.api.naming.pojo.Cluster implement
     @JSONField(serialize = false)
     private HealthCheckTask checkTask;
 
+    /**
+     * 持久化实例
+     *
+     */
     @JSONField(serialize = false)
     private Set<Instance> persistentInstances = new HashSet<>();
 
+    /**
+     *
+     * 临时实例
+     *
+     */
     @JSONField(serialize = false)
     private Set<Instance> ephemeralInstances = new HashSet<>();
 

@@ -17,6 +17,9 @@ package com.alibaba.nacos.naming.healthcheck;
 
 /**
  * @author nkorange
+ *
+ * 健康检测
+ *
  */
 public interface HealthCheckProcessor {
 

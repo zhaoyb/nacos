@@ -36,10 +36,12 @@ import java.util.regex.Pattern;
  */
 public class Instance extends com.alibaba.nacos.api.naming.pojo.Instance implements Comparable {
 
+    // 权重
     private static final double MAX_WEIGHT_VALUE = 10000.0D;
     private static final double MIN_POSITIVE_WEIGHT_VALUE = 0.01D;
     private static final double MIN_WEIGHT_VALUE = 0.00D;
 
+    // 最后一次心跳
     private volatile long lastBeat = System.currentTimeMillis();
 
     @JSONField(serialize = false)

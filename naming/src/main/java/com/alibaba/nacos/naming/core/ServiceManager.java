@@ -425,22 +425,30 @@ public class ServiceManager implements RecordListener<Service> {
 
     public void createServiceIfAbsent(String namespaceId, String serviceName, boolean local, Cluster cluster) throws NacosException {
         Service service = getService(namespaceId, serviceName);
+        // 创建新的service
         if (service == null) {
 
             Loggers.SRV_LOG.info("creating empty service {}:{}", namespaceId, serviceName);
             service = new Service();
+            // service名称
             service.setName(serviceName);
+            // 命名空间，用来隔离不同的环境， 比如线上和线下
             service.setNamespaceId(namespaceId);
+            // service 组， 如果一个service有不同的组，则会在service名称上表现出来
             service.setGroupName(NamingUtils.getGroupName(serviceName));
             // now validate the service. if failed, exception will be thrown
             service.setLastModifiedMillis(System.currentTimeMillis());
+
+            // 对这服务进行签名
             service.recalculateChecksum();
             if (cluster != null) {
                 cluster.setService(service);
                 service.getClusterMap().put(cluster.getName(), cluster);
             }
+            //验证名称是否有效，放在这里 有点疑问，为什么不放在最开始
             service.validate();
 
+            // 放入内存中
             putServiceAndInit(service);
             if (!local) {
                 addOrReplaceService(service);
